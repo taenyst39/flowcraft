@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FlowCraft — 共同編集フローチャート</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="landing" class="landing">
+  <div class="landing-inner">
+    <div class="logo-mark">FC</div>
+    <h1>FlowCraft</h1>
+    <p class="tagline">リアルタイム共同編集フローチャート</p>
+    <div class="landing-actions">
+      <button class="btn-primary" onclick="createNewRoom()">
+        <i class="ti ti-plus"></i> 新しいボードを作成
+      </button>
+      <div class="divider-text">または</div>
+      <div class="join-row">
+        <input type="text" id="room-input" placeholder="ボードIDを入力..." autocomplete="off">
+        <button class="btn-secondary" onclick="joinRoom()">参加</button>
+      </div>
+    </div>
+    <p class="hint">ボードIDをシェアするだけで共同編集できます</p>
+  </div>
+</div>
+
+<div id="editor" class="editor hidden">
+  <div id="topbar">
+    <div class="topbar-left">
+      <div class="logo-sm" onclick="backToLanding()">FC</div>
+      <div class="board-info">
+        <span class="board-title" id="board-title">無題のボード</span>
+        <button class="icon-btn" onclick="renameBoard()" title="名前を変更"><i class="ti ti-pencil"></i></button>
+      </div>
+    </div>
+    <div class="topbar-center">
+      <div id="collaborators"></div>
+    </div>
+    <div class="topbar-right">
+      <div class="share-box">
+        <span class="room-id-label">ボードID:</span>
+        <span class="room-id-display" id="room-id-display">—</span>
+        <button class="icon-btn" onclick="copyRoomId()" title="IDをコピー"><i class="ti ti-copy"></i></button>
+      </div>
+      <button class="btn-export" onclick="exportSVG()"><i class="ti ti-download"></i> 保存</button>
+    </div>
+  </div>
+
+  <div id="main-area">
+    <div id="sidebar">
+      <div class="sidebar-section">
+        <div class="sidebar-label">図形</div>
+        <button class="shape-btn" onclick="addNode('rect')">
+          <svg width="32" height="24"><rect x="2" y="4" width="28" height="16" rx="3" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+          <span>四角</span>
+        </button>
+        <button class="shape-btn" onclick="addNode('ellipse')">
+          <svg width="32" height="24"><ellipse cx="16" cy="12" rx="13" ry="9" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+          <span>丸</span>
+        </button>
+        <button class="shape-btn" onclick="addNode('diamond')">
+          <svg width="32" height="24"><polygon points="16,2 30,12 16,22 2,12" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+          <span>菱形</span>
+        </button>
+      </div>
+      <div class="sidebar-section">
+        <div class="sidebar-label">テキスト</div>
+        <button class="shape-btn" onclick="addFreeText()">
+          <svg width="32" height="24"><text x="4" y="17" font-size="16" fill="currentColor" font-family="serif">T</text></svg>
+          <span>テキスト</span>
+        </button>
+      </div>
+      <div class="sidebar-section">
+        <div class="sidebar-label">画像</div>
+        <button class="shape-btn" onclick="triggerUpload()">
+          <i class="ti ti-photo-up" style="font-size:20px"></i>
+          <span>アップロード</span>
+        </button>
+        <button class="shape-btn" onclick="showUrlModal()">
+          <i class="ti ti-link" style="font-size:20px"></i>
+          <span>URL</span>
+        </button>
+      </div>
+      <div class="sidebar-section">
+        <div class="sidebar-label">操作</div>
+        <button class="shape-btn" id="connect-btn" onclick="toggleConnect()">
+          <i class="ti ti-arrow-right" style="font-size:20px"></i>
+          <span>接続</span>
+        </button>
+        <button class="shape-btn danger" onclick="deleteSelected()">
+          <i class="ti ti-trash" style="font-size:20px"></i>
+          <span>削除</span>
+        </button>
+      </div>
+    </div>
+
+    <div id="canvas-wrap">
+      <div id="canvas-controls">
+        <button class="ctrl-btn" onclick="zoomIn()" title="拡大"><i class="ti ti-plus"></i></button>
+        <button class="ctrl-btn" onclick="zoomOut()" title="縮小"><i class="ti ti-minus"></i></button>
+        <button class="ctrl-btn" onclick="resetZoom()" title="リセット"><i class="ti ti-focus-centered"></i></button>
+      </div>
+      <svg id="canvas" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="arrow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#94a3b8"/>
+          </marker>
+          <marker id="arrow-sel" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#6366f1"/>
+          </marker>
+        </defs>
+        <g id="viewport">
+          <g id="edges-layer"></g>
+          <g id="nodes-layer"></g>
+          <g id="text-layer"></g>
+        </g>
+      </svg>
+      <input type="file" id="file-input" accept="image/*" style="display:none" onchange="handleFileUpload(event)">
+    </div>
+
+    <div id="props-panel" class="hidden">
+      <div class="props-header">
+        <span>プロパティ</span>
+        <button class="icon-btn" onclick="closeProps()"><i class="ti ti-x"></i></button>
+      </div>
+      <div class="prop-group">
+        <label>ラベル</label>
+        <input type="text" id="prop-label" oninput="updatePropLabel()" placeholder="テキストを入力">
+      </div>
+      <div class="prop-group" id="prop-color-group">
+        <label>背景色</label>
+        <div class="color-swatches" id="color-swatches"></div>
+      </div>
+      <div class="prop-group" id="prop-shape-group">
+        <label>図形</label>
+        <select id="prop-shape" onchange="updatePropShape()">
+          <option value="rect">四角</option>
+          <option value="ellipse">丸</option>
+          <option value="diamond">菱形</option>
+        </select>
+      </div>
+      <div class="prop-group">
+        <label>文字色</label>
+        <div class="color-swatches" id="text-color-swatches"></div>
+      </div>
+      <button class="prop-delete" onclick="deleteSelected()"><i class="ti ti-trash"></i> 削除</button>
+    </div>
+  </div>
+</div>
+
+<div id="url-modal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <h3>画像URLを入力</h3>
+    <input type="text" id="url-input" placeholder="https://example.com/image.png">
+    <div class="modal-btns">
+      <button onclick="hideUrlModal()">キャンセル</button>
+      <button class="ok" onclick="addImageFromUrl()">追加</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
