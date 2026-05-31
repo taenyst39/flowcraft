@@ -4,7 +4,7 @@
 // ============================================================
 
 // ★ ここに自分のFirebaseの設定を貼り付けてください ★
-const firebaseConfig = {
+const FIREBASE_CONFIG = {
   apiKey: "AIzaSyBDPsDbVMUYoadexVtt0H-YBxHWDD-bJ2A",
   authDomain: "talk-chart.firebaseapp.com",
   databaseURL: "https://talk-chart-default-rtdb.firebaseio.com",
