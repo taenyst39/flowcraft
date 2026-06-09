@@ -43,8 +43,7 @@ let nodeCounter = 0;
 const FILL_COLORS = ['#1e2d45','#1a3330','#2d1f3d','#2d2310','#2d1f1f','#1f2d2d','#2a2a2a'];
 const TEXT_COLORS = ['#e2e8f0','#94a3b8','#818cf8','#34d399','#f59e0b','#f87171','#ffffff'];
 
-function COLLAB_COLORS() {}
-const COLLAB_COLORS_LIST = ['#6366f1','#34d399','#f59e0b','#f87171','#a78bfa','#38bdf8','#fb7185'];
+const COLLAB_COLORS = ['#6366f1','#34d399','#f59e0b','#f87171','#a78bfa','#38bdf8','#fb7185'];
 
 // ============================================================
 // LANDING
