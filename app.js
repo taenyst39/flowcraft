@@ -18,6 +18,10 @@ const FIREBASE_CONFIG = {
 // ============================================================
 // INIT
 // ============================================================
+const COLLAB_COLORS = ['#6366f1','#34d399','#f59e0b','#f87171','#a78bfa','#38bdf8','#fb7185'];
+const FILL_COLORS = ['#1e2d45','#1a3330','#2d1f3d','#2d2310','#2d1f1f','#1f2d2d','#2a2a2a'];
+const TEXT_COLORS = ['#e2e8f0','#94a3b8','#818cf8','#34d399','#f59e0b','#f87171','#ffffff'];
+
 firebase.initializeApp(FIREBASE_CONFIG);
 const db = firebase.database();
 
@@ -38,12 +42,6 @@ let dragging = null, dragOffX = 0, dragOffY = 0;
 let resizing = null, resizeStart = null;
 let zoom = 1, panX = 0, panY = 0;
 let isPanning = false, panStart = null;
-let nodeCounter = 0;
-
-const FILL_COLORS = ['#1e2d45','#1a3330','#2d1f3d','#2d2310','#2d1f1f','#1f2d2d','#2a2a2a'];
-const TEXT_COLORS = ['#e2e8f0','#94a3b8','#818cf8','#34d399','#f59e0b','#f87171','#ffffff'];
-
-const COLLAB_COLORS = ['#6366f1','#34d399','#f59e0b','#f87171','#a78bfa','#38bdf8','#fb7185'];
 
 // ============================================================
 // LANDING
@@ -91,7 +89,6 @@ function startEditor(id) {
   myPresence.set({ color: myColor, ts: Date.now() });
   myPresence.onDisconnect().remove();
 
-  // Listen to board
   roomRef.child('title').on('value', snap => {
     boardTitle = snap.val() || '無題のボード';
     document.getElementById('board-title').textContent = boardTitle;
@@ -126,6 +123,7 @@ function renderCollaborators(collabs) {
   const el = document.getElementById('collaborators');
   el.innerHTML = '';
   Object.entries(collabs).forEach(([uid, info]) => {
+    if (!info || !info.color) return;
     const av = document.createElement('div');
     av.className = 'collab-avatar';
     av.style.background = info.color;
@@ -141,6 +139,7 @@ function renderCollaborators(collabs) {
 function genId() { return 'n' + Date.now() + Math.random().toString(36).slice(2, 5); }
 
 function addNode(type) {
+  if (!roomRef) return;
   const id = genId();
   const cx = (300 + Math.random() * 200 - panX) / zoom;
   const cy = (160 + Math.random() * 120 - panY) / zoom;
@@ -154,39 +153,28 @@ function addNode(type) {
     textColor: TEXT_COLORS[0]
   };
   roomRef.child('nodes/' + id).set(node);
-  selectNode(id);
 }
 
 function addFreeText() {
+  if (!roomRef) return;
   const id = 'ft' + Date.now();
-  const ft = {
-    id, x: 200, y: 100,
-    text: 'テキスト',
-    fontSize: 14,
-    color: '#e2e8f0'
-  };
+  const ft = { id, x: 200, y: 100, text: 'テキスト', fontSize: 14, color: '#e2e8f0' };
   roomRef.child('freeTexts/' + id).set(ft);
 }
 
 function addImageNode(src) {
+  if (!roomRef) return;
   const id = genId();
-  const node = {
-    id, type: 'image',
-    x: 250, y: 180,
-    w: 120, h: 90,
-    src, label: '', fill: 'none', textColor: '#e2e8f0'
-  };
+  const node = { id, type: 'image', x: 250, y: 180, w: 120, h: 90, src, label: '', fill: 'none', textColor: '#e2e8f0' };
   roomRef.child('nodes/' + id).set(node);
-  selectNode(id);
 }
 
 function deleteSelected() {
-  if (!selectedId) return;
+  if (!selectedId || !roomRef) return;
   if (selectedId.startsWith('ft')) {
     roomRef.child('freeTexts/' + selectedId).remove();
   } else {
     roomRef.child('nodes/' + selectedId).remove();
-    // Remove connected edges
     Object.values(edges).forEach(e => {
       if (e.from === selectedId || e.to === selectedId) {
         roomRef.child('edges/' + e.id).remove();
@@ -200,6 +188,7 @@ function deleteSelected() {
 // EDGES
 // ============================================================
 function addEdge(from, to) {
+  if (!roomRef) return;
   const exists = Object.values(edges).find(e => e.from === from && e.to === to);
   if (exists) return;
   const id = 'e' + Date.now();
@@ -225,20 +214,15 @@ function renderNode(node) {
   g.style.cursor = 'move';
 
   if (node.type === 'rect') {
-    const r = svgEl('rect', { x: node.x-node.w/2, y: node.y-node.h/2, width: node.w, height: node.h, rx: 6, fill: node.fill, stroke: '#374160', 'stroke-width': 1 });
-    g.appendChild(r);
+    g.appendChild(svgEl('rect', { x: node.x-node.w/2, y: node.y-node.h/2, width: node.w, height: node.h, rx: 6, fill: node.fill, stroke: '#374160', 'stroke-width': 1 }));
   } else if (node.type === 'ellipse') {
-    const e = svgEl('ellipse', { cx: node.x, cy: node.y, rx: node.w/2, ry: node.h/2, fill: node.fill, stroke: '#374160', 'stroke-width': 1 });
-    g.appendChild(e);
+    g.appendChild(svgEl('ellipse', { cx: node.x, cy: node.y, rx: node.w/2, ry: node.h/2, fill: node.fill, stroke: '#374160', 'stroke-width': 1 }));
   } else if (node.type === 'diamond') {
     const hw = node.w/2, hh = node.h/2;
-    const p = svgEl('polygon', { points: `${node.x},${node.y-hh} ${node.x+hw},${node.y} ${node.x},${node.y+hh} ${node.x-hw},${node.y}`, fill: node.fill, stroke: '#374160', 'stroke-width': 1 });
-    g.appendChild(p);
+    g.appendChild(svgEl('polygon', { points: `${node.x},${node.y-hh} ${node.x+hw},${node.y} ${node.x},${node.y+hh} ${node.x-hw},${node.y}`, fill: node.fill, stroke: '#374160', 'stroke-width': 1 }));
   } else if (node.type === 'image') {
-    const img = svgEl('image', { x: node.x-node.w/2, y: node.y-node.h/2, width: node.w, height: node.h, href: node.src, preserveAspectRatio: 'xMidYMid meet' });
-    g.appendChild(img);
-    const border = svgEl('rect', { x: node.x-node.w/2, y: node.y-node.h/2, width: node.w, height: node.h, rx: 4, fill: 'none', stroke: '#374160', 'stroke-width': 1 });
-    g.appendChild(border);
+    g.appendChild(svgEl('image', { x: node.x-node.w/2, y: node.y-node.h/2, width: node.w, height: node.h, href: node.src, preserveAspectRatio: 'xMidYMid meet' }));
+    g.appendChild(svgEl('rect', { x: node.x-node.w/2, y: node.y-node.h/2, width: node.w, height: node.h, rx: 4, fill: 'none', stroke: '#374160', 'stroke-width': 1 }));
   }
 
   if (node.label && node.type !== 'image') {
@@ -247,7 +231,6 @@ function renderNode(node) {
     g.appendChild(t);
   }
 
-  // Resize handle
   const rh = svgEl('rect', { x: node.x+node.w/2-6, y: node.y+node.h/2-6, width: 9, height: 9, fill: '#6366f1', rx: 2, class: 'resize-handle' });
   rh.style.cursor = 'nwse-resize';
   rh.addEventListener('mousedown', e => { e.stopPropagation(); startResize(e, node.id); });
@@ -285,10 +268,8 @@ function rerenderFreeTexts() {
     g.style.cursor = 'move';
 
     const fo = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
-    fo.setAttribute('x', ft.x);
-    fo.setAttribute('y', ft.y);
-    fo.setAttribute('width', 200);
-    fo.setAttribute('height', 60);
+    fo.setAttribute('x', ft.x); fo.setAttribute('y', ft.y);
+    fo.setAttribute('width', 200); fo.setAttribute('height', 60);
 
     const div = document.createElement('div');
     div.style.cssText = `color:${ft.color||'#e2e8f0'};font-size:${ft.fontSize||14}px;font-family:DM Sans,sans-serif;user-select:none;white-space:pre-wrap;`;
@@ -303,9 +284,8 @@ function rerenderFreeTexts() {
 }
 
 function applySelection(id) {
-  // Clear all selections
-  document.querySelectorAll('#nodes-layer g rect, #nodes-layer g ellipse, #nodes-layer g polygon, #nodes-layer g image').forEach(el => {
-    if (!el.classList.contains('resize-handle') && el.tagName !== 'image') {
+  document.querySelectorAll('#nodes-layer g rect, #nodes-layer g ellipse, #nodes-layer g polygon').forEach(el => {
+    if (!el.classList.contains('resize-handle')) {
       el.setAttribute('stroke', '#374160');
       el.setAttribute('stroke-width', 1);
     }
@@ -365,7 +345,7 @@ function closeProps() { deselect(); }
 // PROPS UPDATE
 // ============================================================
 function updatePropLabel() {
-  if (!selectedId) return;
+  if (!selectedId || !roomRef) return;
   const val = document.getElementById('prop-label').value;
   if (freeTexts[selectedId]) {
     roomRef.child('freeTexts/' + selectedId + '/text').set(val);
@@ -375,18 +355,18 @@ function updatePropLabel() {
 }
 
 function updatePropShape() {
-  if (!selectedId || !nodes[selectedId]) return;
+  if (!selectedId || !nodes[selectedId] || !roomRef) return;
   roomRef.child('nodes/' + selectedId + '/type').set(document.getElementById('prop-shape').value);
 }
 
 function setFillColor(color) {
-  if (!selectedId || !nodes[selectedId]) return;
+  if (!selectedId || !nodes[selectedId] || !roomRef) return;
   roomRef.child('nodes/' + selectedId + '/fill').set(color);
   updateSwatchActiveStates(color, null);
 }
 
 function setTextColor(color) {
-  if (!selectedId) return;
+  if (!selectedId || !roomRef) return;
   if (freeTexts[selectedId]) {
     roomRef.child('freeTexts/' + selectedId + '/color').set(color);
   } else if (nodes[selectedId]) {
@@ -409,24 +389,22 @@ function updateSwatchActiveStates(fill, textColor) {
 }
 
 // ============================================================
-// COLOR SWATCHES BUILD
+// COLOR SWATCHES
 // ============================================================
 function buildColorSwatches() {
   const fillEl = document.getElementById('color-swatches');
+  fillEl.innerHTML = '';
   FILL_COLORS.forEach(c => {
     const s = document.createElement('div');
-    s.className = 'swatch';
-    s.style.background = c;
-    s.dataset.color = c;
+    s.className = 'swatch'; s.style.background = c; s.dataset.color = c;
     s.onclick = () => setFillColor(c);
     fillEl.appendChild(s);
   });
   const textEl = document.getElementById('text-color-swatches');
+  textEl.innerHTML = '';
   TEXT_COLORS.forEach(c => {
     const s = document.createElement('div');
-    s.className = 'swatch';
-    s.style.background = c;
-    s.dataset.color = c;
+    s.className = 'swatch'; s.style.background = c; s.dataset.color = c;
     s.onclick = () => setTextColor(c);
     textEl.appendChild(s);
   });
@@ -446,8 +424,6 @@ function onNodeMousedown(e, id) {
       });
     } else if (connectFrom !== id) {
       addEdge(connectFrom, id);
-      const g = document.getElementById(connectFrom);
-      if (g) applySelection(selectedId);
       connectFrom = null;
       toggleConnect(true);
     }
@@ -488,7 +464,6 @@ function setupCanvasEvents() {
     if (e.target === svg || e.target.id === 'viewport') {
       deselect();
       connectFrom = null;
-      // Pan start
       isPanning = true;
       panStart = { x: e.clientX - panX, y: e.clientY - panY };
     }
@@ -498,7 +473,7 @@ function setupCanvasEvents() {
     if (dragging) {
       const pt = svgPoint(e);
       const node = nodes[dragging] || freeTexts[dragging];
-      if (!node) return;
+      if (!node || !roomRef) return;
       node.x = pt.x - dragOffX;
       node.y = pt.y - dragOffY;
       if (freeTexts[dragging]) {
@@ -510,7 +485,7 @@ function setupCanvasEvents() {
     if (resizing) {
       const pt = svgPoint(e);
       const node = nodes[resizing];
-      if (!node) return;
+      if (!node || !roomRef) return;
       const nw = Math.max(60, resizeStart.w + (pt.x - resizeStart.px) * 2);
       const nh = Math.max(40, resizeStart.h + (pt.y - resizeStart.py) * 2);
       roomRef.child('nodes/' + resizing).update({ w: nw, h: nh });
@@ -539,7 +514,7 @@ function updateViewport() {
 }
 
 // ============================================================
-// ZOOM CONTROLS
+// ZOOM
 // ============================================================
 function zoomIn() { zoom = Math.min(3, zoom * 1.2); updateViewport(); }
 function zoomOut() { zoom = Math.max(0.2, zoom / 1.2); updateViewport(); }
@@ -551,13 +526,12 @@ function resetZoom() { zoom = 1; panX = 0; panY = 0; updateViewport(); }
 function toggleConnect(forceOff) {
   connectMode = forceOff ? false : !connectMode;
   connectFrom = null;
-  const btn = document.getElementById('connect-btn');
-  btn.classList.toggle('active', connectMode);
+  document.getElementById('connect-btn').classList.toggle('active', connectMode);
   document.getElementById('canvas').style.cursor = connectMode ? 'crosshair' : 'default';
 }
 
 // ============================================================
-// LABEL EDITING (inline)
+// LABEL EDITING
 // ============================================================
 function startEditLabel(e, id) {
   const node = nodes[id];
@@ -565,18 +539,14 @@ function startEditLabel(e, id) {
   const svg = document.getElementById('canvas');
   const rect = svg.getBoundingClientRect();
   const inp = document.createElement('input');
-  inp.type = 'text';
-  inp.className = 'inline-edit';
+  inp.type = 'text'; inp.className = 'inline-edit';
   inp.value = node.label || '';
   inp.style.left = (node.x * zoom + panX + rect.left - (node.w * zoom)/2) + 'px';
   inp.style.top = (node.y * zoom + panY + rect.top - 14) + 'px';
   inp.style.width = (node.w * zoom) + 'px';
   document.body.appendChild(inp);
   inp.focus(); inp.select();
-  const done = () => {
-    roomRef.child('nodes/' + id + '/label').set(inp.value);
-    inp.remove();
-  };
+  const done = () => { if (roomRef) roomRef.child('nodes/' + id + '/label').set(inp.value); inp.remove(); };
   inp.addEventListener('blur', done);
   inp.addEventListener('keydown', ev => { if (ev.key === 'Enter') done(); });
 }
@@ -595,10 +565,7 @@ function startEditFreeText(e, id) {
   ta.style.color = ft.color || '#e2e8f0';
   document.body.appendChild(ta);
   ta.focus();
-  const done = () => {
-    roomRef.child('freeTexts/' + id + '/text').set(ta.value);
-    ta.remove();
-  };
+  const done = () => { if (roomRef) roomRef.child('freeTexts/' + id + '/text').set(ta.value); ta.remove(); };
   ta.addEventListener('blur', done);
   ta.addEventListener('keydown', ev => { if (ev.key === 'Escape') done(); });
 }
@@ -608,9 +575,7 @@ function startEditFreeText(e, id) {
 // ============================================================
 function renameBoard() {
   const newTitle = prompt('ボード名を入力:', boardTitle);
-  if (newTitle !== null) {
-    roomRef.child('title').set(newTitle || '無題のボード');
-  }
+  if (newTitle !== null && roomRef) roomRef.child('title').set(newTitle || '無題のボード');
 }
 
 // ============================================================
@@ -638,15 +603,12 @@ function addImageFromUrl() {
 }
 
 // ============================================================
-// SHARE / COPY
+// SHARE / EXPORT
 // ============================================================
 function copyRoomId() {
   navigator.clipboard.writeText(roomId).then(() => showToast('ボードIDをコピーしました！'));
 }
 
-// ============================================================
-// EXPORT
-// ============================================================
 function exportSVG() {
   const svgEl = document.getElementById('canvas');
   const serializer = new XMLSerializer();
@@ -682,7 +644,6 @@ window.addEventListener('load', () => {
   }
 });
 
-// Keyboard shortcuts
 window.addEventListener('keydown', e => {
   if ((e.key === 'Delete' || e.key === 'Backspace') && selectedId && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
     deleteSelected();
